@@ -1,22 +1,11 @@
-# .vercelignore
-*.git
-node_modules
 __pycache__
 *.pyc
 *.pyo
 *.pyd
-.Python
+.git
+.github
+.venv
+venv
 env
-pip-log.txt
-pip-delete-this-directory.txt
-.tox
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
 *.log
-.mypy_cache
-.pytest_cache
-.hypothesis
+processed_image.png
