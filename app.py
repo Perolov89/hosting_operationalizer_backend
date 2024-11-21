@@ -13,7 +13,7 @@ import logging
 load_dotenv()
 
 # Setup logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Serving endpoint from environment variable
@@ -37,21 +37,29 @@ CORS(app)
 
 
 def preprocess_image(image_bytes):
+    """
+    Preprocess the image for the ONNX model.
 
-    # Preprocesses the image for model input.
+    Parameters:
+        image_bytes (bytes): Raw image data in bytes.
 
+    Returns:
+        np.ndarray: Preprocessed image array ready for model input.
+    """
     try:
         img = Image.open(io.BytesIO(image_bytes))
+
+        # Convert to grayscale if not already
         if img.mode != 'L':
-            img = img.convert('L')  # Convert to grayscale
+            img = img.convert('L')
 
-        img = img.resize((28, 28))  # Resize to model input shape
-        img_array = np.array(img) / 255.0  # Normalize pixel values
-        img_array = img_array.reshape(1, 28, 28, 1).astype(
-            np.float32)  # Reshape for model
+        # Resize to match the model's input shape
+        img = img.resize((28, 28))
 
-        # Logging processed image details
-        logger.debug("Image processed successfully.")
+        # Normalize pixel values and reshape for model input
+        img_array = np.array(img) / 255.0
+        img_array = img_array.reshape(1, 28, 28, 1).astype(np.float32)
+
         return img_array
     except UnidentifiedImageError as e:
         logger.error(f"Error processing image: {e}")
@@ -62,9 +70,15 @@ def preprocess_image(image_bytes):
 
 
 def convert_to_symbol(predicted_label):
+    """
+    Convert a predicted label into a human-readable symbol.
 
-    # Converts a numeric label to a symbol if applicable.
+    Parameters:
+        predicted_label (int): Numeric label predicted by the model.
 
+    Returns:
+        str: Symbol corresponding to the predicted label.
+    """
     symbol_map = {
         'add': '+',
         'divide': '/',
@@ -77,14 +91,23 @@ def convert_to_symbol(predicted_label):
 
 @app.route('/')
 def home():
+    """Health check endpoint to confirm the backend is running."""
     return "The operationalizer is running!"
 
 
 @app.route(serving_endpoint, methods=['POST'])
 def predict():
+    """
+    Endpoint to process images and return model predictions.
+
+    Expects a JSON payload with a key 'images' containing base64-encoded images
+    for 'firstNumber', 'operator', and 'secondNumber'.
+
+    Returns:
+        JSON: Predictions for each image with labels, symbols, and accuracies.
+    """
     try:
         data = request.get_json()
-        logger.debug("Received request data: %s", data)
 
         if not data or 'images' not in data:
             logger.error("No image data provided in the request.")
@@ -97,23 +120,26 @@ def predict():
 
         predictions = {}
         for id, image_data in data['images'].items():
-            logger.debug("Processing image for key: %s", id)
             try:
-                base64_data = image_data.split(
-                    ',')[1] if ',' in image_data else image_data
+                # Decode base64 image data
+                base64_data = image_data.split(',')[1] if ',' in image_data else image_data
                 image_bytes = base64.b64decode(base64_data)
 
+                # Preprocess the image
                 img_array = preprocess_image(image_bytes)
                 if img_array is None:
                     logger.error(f"Invalid image format for {id}.")
                     return jsonify({'error': f'Invalid image format for {id}'}), 400
 
+                # Run inference on the model
                 input_name = onnx_session.get_inputs()[0].name
                 prediction = onnx_session.run(None, {input_name: img_array})
 
+                # Extract prediction results
                 predicted_label = np.argmax(prediction[0], axis=1)[0]
                 predicted_symbol = convert_to_symbol(predicted_label)
 
+                # Store results
                 predictions[id] = {
                     'predicted_label': int(predicted_label),
                     'predicted_symbol': predicted_symbol,
@@ -123,7 +149,6 @@ def predict():
                 logger.exception(f"Error processing image with ID {id}.")
                 return jsonify({'error': f'Error processing image {id}: {e}'}), 500
 
-        logger.info("Prediction successful: %s", predictions)
         return jsonify(predictions)
 
     except Exception as e:
