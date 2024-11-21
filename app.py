@@ -35,10 +35,11 @@ class_names = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 app = Flask(__name__)
 CORS(app)
 
+
 def preprocess_image(image_bytes):
-    """
-    Preprocesses the image for model input.
-    """
+
+    # Preprocesses the image for model input.
+
     try:
         img = Image.open(io.BytesIO(image_bytes))
         if img.mode != 'L':
@@ -46,12 +47,11 @@ def preprocess_image(image_bytes):
 
         img = img.resize((28, 28))  # Resize to model input shape
         img_array = np.array(img) / 255.0  # Normalize pixel values
-        img_array = img_array.reshape(1, 28, 28, 1).astype(np.float32)  # Reshape for model
+        img_array = img_array.reshape(1, 28, 28, 1).astype(
+            np.float32)  # Reshape for model
 
-        # Save the processed image for debugging
-        Image.fromarray(
-            (img_array[0, :, :, 0] * 255).astype(np.uint8)).save('processed_image.png')
-
+        # Logging processed image details
+        logger.debug("Image processed successfully.")
         return img_array
     except UnidentifiedImageError as e:
         logger.error(f"Error processing image: {e}")
@@ -60,10 +60,11 @@ def preprocess_image(image_bytes):
         logger.exception("Unexpected error during image preprocessing.")
         return None
 
+
 def convert_to_symbol(predicted_label):
-    """
-    Converts a numeric label to a symbol if applicable.
-    """
+
+    # Converts a numeric label to a symbol if applicable.
+
     symbol_map = {
         'add': '+',
         'divide': '/',
@@ -73,9 +74,11 @@ def convert_to_symbol(predicted_label):
     predicted_class = class_names[predicted_label]
     return symbol_map.get(predicted_class, predicted_class)
 
+
 @app.route('/')
 def home():
     return "The operationalizer is running!"
+
 
 @app.route(serving_endpoint, methods=['POST'])
 def predict():
@@ -96,7 +99,8 @@ def predict():
         for id, image_data in data['images'].items():
             logger.debug("Processing image for key: %s", id)
             try:
-                base64_data = image_data.split(',')[1] if ',' in image_data else image_data
+                base64_data = image_data.split(
+                    ',')[1] if ',' in image_data else image_data
                 image_bytes = base64.b64decode(base64_data)
 
                 img_array = preprocess_image(image_bytes)
@@ -125,6 +129,7 @@ def predict():
     except Exception as e:
         logger.exception("Unexpected error in prediction endpoint.")
         return jsonify({'error': f"An unexpected error occurred: {str(e)}"}), 500
+
 
 if __name__ == '__main__':
     try:
